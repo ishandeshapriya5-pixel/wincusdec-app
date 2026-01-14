@@ -3,26 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WinCusdec Pro - HS Code Tracker</title>
+    <title>WinCusdec Pro - Advanced Data Tracker</title>
     <style>
         :root { --primary: #2c3e50; --secondary: #34495e; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; }
         body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; margin: 0; padding: 15px; }
-        .container { max-width: 1100px; margin: auto; }
+        .container { max-width: 1200px; margin: auto; }
         
         .upload-card { background: white; padding: 25px; border-radius: 15px; text-align: center; border: 3px dashed var(--accent); cursor: pointer; margin-bottom: 15px; }
         
         .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
         .btn-clear { background: var(--danger); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
-        .btn-del-row { background: #ffeded; color: var(--danger); border: 1px solid var(--danger); padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .btn-del-row { background: #ffeded; color: var(--danger); border: 1px solid var(--danger); padding: 5px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
 
         .search-box { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 15px; min-width: 250px; }
 
-        .data-table { width: 100%; background: white; border-collapse: collapse; border-radius: 10px; overflow-x: auto; display: block; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-        .data-table th { background: var(--primary); color: white; padding: 12px; text-align: left; font-size: 14px; white-space: nowrap; }
-        .data-table td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 13px; vertical-align: middle; }
+        .table-container { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+        .data-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        .data-table th { background: var(--primary); color: white; padding: 12px; text-align: left; font-size: 13px; white-space: nowrap; }
+        .data-table td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12.5px; vertical-align: middle; }
         
-        .badge-duty { background: var(--success); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-        .hs-code { color: #e67e22; font-weight: bold; font-family: monospace; }
+        .badge-duty { background: var(--success); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; white-space: nowrap; }
+        .info-text { color: #555; font-weight: 500; }
         .no-data { text-align: center; padding: 40px; color: #7f8c8d; background: white; border-radius: 10px; }
     </style>
 </head>
@@ -31,28 +32,33 @@
 <div class="container">
     <div class="upload-card" onclick="document.getElementById('xmlMultiple').click()">
         <h3 style="color: var(--accent); margin: 0;">XML ගොනු මෙතැනට දමන්න (Bulk Upload)</h3>
-        <p style="font-size: 12px; color: #666;">බහු ගොනු තේරීමට බ්‍රවුසරය භාවිතා කිරීම නිර්දේශ කෙරේ</p>
+        <p style="font-size: 12px; color: #666;">දිනය, අනුපාතිකය ඇතුළු සියලු විස්තර ස්වයංක්‍රීයව එක්වේ</p>
         <input type="file" id="xmlMultiple" hidden accept=".xml" multiple onchange="handleFiles(this.files)">
     </div>
 
     <div class="action-bar">
-        <input type="text" id="searchInput" class="search-box" placeholder="වාහනය, චැසිය, HS Code හෝ Duty සොයන්න..." onkeyup="filterData()">
+        <input type="text" id="searchInput" class="search-box" placeholder="වාහනය, චැසිය, HS Code, දිනය හෝ Duty සොයන්න..." onkeyup="filterData()">
         <button class="btn-clear" onclick="clearDatabase()">සියල්ල මකන්න</button>
     </div>
 
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>වාහනය</th>
-                <th>චැසි අංකය</th>
-                <th>HS Code</th>
-                <th>Invoice (JPY)</th>
-                <th>Duty (Rs.)</th>
-                <th>ක්‍රියාව</th>
-            </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-    </table>
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>දිනය (Assess Date)</th>
+                    <th>වාහනය</th>
+                    <th>චැසි අංකය</th>
+                    <th>HS Code</th>
+                    <th>Rate (LKR)</th>
+                    <th>Invoice (JPY)</th>
+                    <th>Duty (Rs.)</th>
+                    <th>ක්‍රියාව</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
     <div id="noDataMsg" class="no-data" style="display:none;">තවමත් දත්ත කිසිවක් ඇතුළත් කර නොමැත.</div>
 </div>
 
@@ -70,12 +76,17 @@
                     const xml = parser.parseFromString(e.target.result, "text/xml");
                     const getVal = (tag) => xml.getElementsByTagNameNS("*", tag)[0]?.textContent?.trim() || "N/A";
 
+                    // අලුත් දත්ත ලබාගැනීම
+                    const assessDate = getVal("Assessment_date") || getVal("Registration_date");
+                    const exchangeRate = getVal("Currency_rate");
+                    
                     const name = getVal("Description_of_goods").split('\n')[0];
-                    const hs = getVal("Commodity_code"); // HS Code ලබා ගැනීම
+                    const hs = getVal("Commodity_code");
                     
                     let chassis = getVal("Chassis_Number");
                     if (chassis === "N/A") {
-                        chassis = getVal("Marks1_of_packages").replace("CH.NO: ", "").split(',')[0].split(' ')[0];
+                        const marks = getVal("Marks1_of_packages");
+                        chassis = marks !== "N/A" ? marks.replace("CH.NO: ", "").split(',')[0].split(' ')[0] : "N/A";
                     }
                     
                     const inv = parseFloat(getVal("Item_price")).toLocaleString() + " JPY";
@@ -84,15 +95,16 @@
 
                     const vehicleRecord = {
                         id: Date.now() + Math.random(),
+                        date: assessDate,
+                        rate: exchangeRate,
                         name: name,
                         chassis: chassis,
                         hs: hs,
                         invoice: inv,
                         duty: dutyFormatted,
-                        rawSearch: (name + chassis + hs + dutyFormatted).toLowerCase()
+                        rawSearch: (name + chassis + hs + assessDate + dutyFormatted).toLowerCase()
                     };
 
-                    // Duplicate වැළැක්වීම (චැසි අංකය අනුව)
                     if(!vehicleDatabase.some(v => v.chassis === vehicleRecord.chassis)) {
                         vehicleDatabase.push(vehicleRecord);
                     }
@@ -101,7 +113,7 @@
                 reader.readAsText(file);
             });
         }
-        document.getElementById('xmlMultiple').value = ""; // Input එක clear කිරීම
+        document.getElementById('xmlMultiple').value = "";
         saveAndRefresh();
     }
 
@@ -129,11 +141,14 @@
 
         if(data.length > 0) {
             noData.style.display = 'none';
-            data.forEach(v => {
+            data.forEach((v, index) => {
                 tbody.innerHTML += `<tr>
+                    <td>${index + 1}</td>
+                    <td class="info-text">${v.date}</td>
                     <td>${v.name}</td>
                     <td><b>${v.chassis}</b></td>
-                    <td class="hs-code">${v.hs}</td>
+                    <td style="color:#e67e22; font-weight:bold;">${v.hs}</td>
+                    <td class="info-text">${v.rate}</td>
                     <td style="color:#d35400;">${v.invoice}</td>
                     <td><span class="badge-duty">${v.duty}</span></td>
                     <td><button class="btn-del-row" onclick="deleteItem(${v.id})">මකන්න</button></td>
