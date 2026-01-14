@@ -38,13 +38,13 @@
             <thead>
                 <tr>
                     <th>#</th>
-                    <th>දිනය (Assess)</th>
                     <th>වාහනය</th>
                     <th>චැසි අංකය</th>
+                    <th>Duty (Rs.)</th>
+                    <th>Invoice (JPY)</th>
+                    <th>දිනය (Assess)</th>
                     <th>HS Code</th>
                     <th>Rate (LKR)</th>
-                    <th>Invoice (JPY)</th>
-                    <th>Duty (Rs.)</th>
                     <th>ක්‍රියාව</th>
                 </tr>
             </thead>
@@ -63,7 +63,6 @@
             const parser = new DOMParser();
             const xml = parser.parseFromString(text, "text/xml");
 
-            // XML එකෙන් දත්ත සොයාගන්නා ආකාරය
             const getVal = (tags) => {
                 for (let tag of tags) {
                     let el = xml.getElementsByTagName(tag)[0];
@@ -72,10 +71,8 @@
                 return "N/A";
             };
 
-            // 1. දිනය ලබාගැනීම (Date tag එක කෙලින්ම ගනී)
             let date = getVal(["Date", "Assessment_date", "Registration_date"]);
 
-            // 2. Exchange Rate එක ගණනය කිරීම
             let rate = getVal(["Currency_rate"]);
             if (rate === "N/A") {
                 let nat = xml.getElementsByTagName("Amount_national_currency")[0]?.textContent;
@@ -83,7 +80,6 @@
                 if (nat && forgn) rate = (parseFloat(nat) / parseFloat(forgn)).toFixed(4);
             }
 
-            // 3. චැසි අංකය
             let chassis = getVal(["Chassis_Number"]);
             if (chassis === "N/A") {
                 let marks = getVal(["Marks1_of_packages"]);
@@ -99,7 +95,7 @@
                 hs: getVal(["Commodity_code", "HS_Code"]),
                 invoice: getVal(["Item_price"]) + " JPY",
                 duty: getVal(["Totals_taxes"]),
-                searchStr: (date + chassis + rate).toLowerCase()
+                searchStr: (date + chassis + rate + getVal(["Description_of_goods"])).toLowerCase()
             };
 
             if (!vehicleDatabase.some(v => v.chassis === record.chassis && record.chassis !== "N/A")) {
@@ -114,13 +110,13 @@
         tbody.innerHTML = data.map((v, i) => `
             <tr>
                 <td>${i + 1}</td>
-                <td>${v.date}</td>
                 <td>${v.name}</td>
                 <td><b>${v.chassis}</b></td>
+                <td><span class="badge-duty">Rs. ${parseFloat(v.duty).toLocaleString()}</span></td>
+                <td>${v.invoice}</td>
+                <td>${v.date}</td>
                 <td style="color:#e67e22; font-weight:bold;">${v.hs}</td>
                 <td>${v.rate}</td>
-                <td>${v.invoice}</td>
-                <td><span class="badge-duty">Rs. ${parseFloat(v.duty).toLocaleString()}</span></td>
                 <td><button class="btn-del" onclick="deleteItem(${v.id})">මකන්න</button></td>
             </tr>
         `).join('');
