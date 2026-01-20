@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WinCusdec Pro - Secure Edit</title>
+    <title>WinCusdec Pro - Secure Edit & CC</title>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --warning: #f39c12; }
         body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; margin: 0; padding: 15px; }
@@ -16,19 +16,17 @@
         .btn-lock { background: var(--success); display: none; }
         .search-box { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 15px; min-width: 250px; }
         .table-container { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
-        table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        table { width: 100%; border-collapse: collapse; min-width: 1100px; }
         th { background: var(--primary); color: white; padding: 12px; text-align: left; font-size: 13px; }
         td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12.5px; outline: none; }
-        
-        /* Edit Mode එකේදී පමණක් පෙනෙන වෙනස්කම් */
         .edit-active td[contenteditable="true"] { background: #fffde7; border: 1px dashed #ccc; cursor: text; }
         .edit-active td[contenteditable="true"]:focus { background: #fff9c4; border: 1px solid var(--accent); }
-        
         .badge-duty { background: var(--success); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
+        .badge-cc { background: #9b59b6; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
         .btn-del { background: #ffeded; color: var(--danger); border: 1px solid var(--danger); padding: 5px 8px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
-<body class="edit-locked">
+<body>
 
 <div class="container">
     <div class="upload-card" onclick="document.getElementById('xmlMultiple').click()">
@@ -38,19 +36,18 @@
 
     <div class="action-bar">
         <input type="text" id="searchInput" class="search-box" placeholder="සොයන්න..." onkeyup="filterData()">
-        
         <button id="editBtn" class="btn btn-edit" onclick="toggleEditMode()">Edit කරන්න (Unlock)</button>
         <button id="lockBtn" class="btn btn-lock" onclick="lockEditMode()">සුරකින්න (Lock)</button>
-        
         <button class="btn btn-clear" onclick="clearDatabaseWithAuth()">සියල්ල මකන්න</button>
     </div>
 
-    <div class="table-container" id="tableWrapper">
+    <div class="table-container">
         <table>
             <thead>
                 <tr>
                     <th>#</th>
                     <th>වාහනය</th>
+                    <th>Engine CC</th>
                     <th>චැසි අංකය</th>
                     <th>Duty (Rs.)</th>
                     <th>Invoice (JPY)</th>
@@ -71,18 +68,15 @@
     let vehicleDatabase = JSON.parse(localStorage.getItem('vehicleDB')) || [];
     renderTable();
 
-    // Edit Mode එක පාලනය කිරීම
     function toggleEditMode() {
-        const pwd = prompt("Edit කිරීමට අවසර ලබා ගැනීමට Password එක ඇතුළත් කරන්න:");
+        const pwd = prompt("Edit කිරීමට Password ඇතුළත් කරන්න:");
         if (pwd === APP_PASSWORD) {
             isEditMode = true;
             document.body.classList.add('edit-active');
             document.getElementById('editBtn').style.display = 'none';
             document.getElementById('lockBtn').style.display = 'block';
-            renderTable(); // Table එක refresh කර Edit හැකියාව ලබා දේ
-        } else {
-            alert("මුරපදය වැරදියි!");
-        }
+            renderTable();
+        } else { alert("මුරපදය වැරදියි!"); }
     }
 
     function lockEditMode() {
@@ -90,16 +84,16 @@
         document.body.classList.remove('edit-active');
         document.getElementById('editBtn').style.display = 'block';
         document.getElementById('lockBtn').style.display = 'none';
-        renderTable(); // Table එක නැවත Lock කරයි
+        renderTable();
         alert("සියලු දත්ත සුරැකී ඇත!");
     }
 
     async function handleFiles(files) {
-        // ... (මුල් කේතයේ handleFiles කොටස එලෙසම පවතී)
         for (let file of files) {
             const text = await file.text();
             const parser = new DOMParser();
             const xml = parser.parseFromString(text, "text/xml");
+
             const getVal = (tags) => {
                 for (let tag of tags) {
                     let el = xml.getElementsByTagName(tag)[0];
@@ -107,6 +101,13 @@
                 }
                 return "N/A";
             };
+
+            let goodsDesc = getVal(["Description_of_goods", "Goods_description"]);
+            
+            // Engine CC Extract කිරීමේ Logic එක
+            let ccMatch = goodsDesc.match(/(\d{3,5})\s*CC/i);
+            let ccVal = ccMatch ? ccMatch[1] + " CC" : "N/A";
+
             let date = getVal(["Date", "Assessment_date", "Registration_date"]);
             let rate = getVal(["Currency_rate"]);
             if (rate === "N/A") {
@@ -114,22 +115,26 @@
                 let forgn = xml.getElementsByTagName("Amount_foreign_currency")[0]?.textContent;
                 if (nat && forgn) rate = (parseFloat(nat) / parseFloat(forgn)).toFixed(4);
             }
+
             let chassis = getVal(["Chassis_Number"]);
             if (chassis === "N/A") {
                 let marks = getVal(["Marks1_of_packages"]);
                 chassis = marks.includes("CH.NO:") ? marks.split("CH.NO:")[1].trim().split(/[\s,]+/)[0] : "N/A";
             }
+
             const record = {
                 id: Date.now() + Math.random(),
                 date: date,
                 rate: rate,
-                name: getVal(["Description_of_goods"]).split('\n')[0],
+                name: goodsDesc.split('\n')[0],
+                cc: ccVal,
                 chassis: chassis,
                 hs: getVal(["Commodity_code", "HS_Code"]),
                 invoice: getVal(["Item_price"]) + " JPY",
                 duty: getVal(["Totals_taxes"]),
-                searchStr: (date + chassis + rate + getVal(["Description_of_goods"])).toLowerCase()
+                searchStr: (date + chassis + goodsDesc + ccVal).toLowerCase()
             };
+
             if (!vehicleDatabase.some(v => v.chassis === record.chassis && record.chassis !== "N/A")) {
                 vehicleDatabase.push(record);
             }
@@ -147,12 +152,6 @@
         }
     }
 
-    function checkAuth(callback) {
-        const pwd = prompt("මෙම ක්‍රියාව සඳහා Password එක ඇතුළත් කරන්න:");
-        if (pwd === APP_PASSWORD) callback();
-        else alert("මුරපදය වැරදියි!");
-    }
-
     function renderTable(data = vehicleDatabase) {
         const tbody = document.getElementById('tableBody');
         const editableAttr = isEditMode ? 'contenteditable="true"' : 'contenteditable="false"';
@@ -161,6 +160,7 @@
             <tr>
                 <td>${i + 1}</td>
                 <td ${editableAttr} onblur="updateCell(${v.id}, 'name', this.innerText)">${v.name}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'cc', this.innerText)"><span class="badge-cc">${v.cc}</span></td>
                 <td ${editableAttr} onblur="updateCell(${v.id}, 'chassis', this.innerText)"><b>${v.chassis}</b></td>
                 <td ${editableAttr} onblur="updateCell(${v.id}, 'duty', this.innerText)">
                     <span class="badge-duty">Rs. ${parseFloat(v.duty).toLocaleString()}</span>
@@ -172,6 +172,12 @@
                 <td><button class="btn-del" onclick="deleteItemWithAuth(${v.id})">මකන්න</button></td>
             </tr>
         `).join('');
+    }
+
+    function checkAuth(callback) {
+        const pwd = prompt("මෙම ක්‍රියාව සඳහා Password ඇතුළත් කරන්න:");
+        if (pwd === APP_PASSWORD) callback();
+        else alert("මුරපදය වැරදියි!");
     }
 
     function deleteItemWithAuth(id) {
