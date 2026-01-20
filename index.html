@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WinCusdec Pro - Secure Edit & CC</title>
+    <title>WinCusdec Pro - Enhanced CC Extraction</title>
     <style>
         :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --warning: #f39c12; }
         body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; margin: 0; padding: 15px; }
@@ -20,7 +20,6 @@
         th { background: var(--primary); color: white; padding: 12px; text-align: left; font-size: 13px; }
         td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12.5px; outline: none; }
         .edit-active td[contenteditable="true"] { background: #fffde7; border: 1px dashed #ccc; cursor: text; }
-        .edit-active td[contenteditable="true"]:focus { background: #fff9c4; border: 1px solid var(--accent); }
         .badge-duty { background: var(--success); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
         .badge-cc { background: #9b59b6; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; }
         .btn-del { background: #ffeded; color: var(--danger); border: 1px solid var(--danger); padding: 5px 8px; border-radius: 4px; cursor: pointer; }
@@ -96,19 +95,22 @@
 
             const getVal = (tags) => {
                 for (let tag of tags) {
-                    let el = xml.getElementsByTagName(tag)[0];
-                    if (el && el.textContent.trim()) return el.textContent.trim();
+                    let elements = xml.getElementsByTagName(tag);
+                    for (let el of elements) {
+                        if (el && el.textContent.trim()) return el.textContent.trim();
+                    }
                 }
                 return "N/A";
             };
 
-            let goodsDesc = getVal(["Description_of_goods", "Goods_description"]);
-            
-            // Engine CC Extract කිරීමේ Logic එක
-            let ccMatch = goodsDesc.match(/(\d{3,5})\s*CC/i);
+            // CC අගය සෙවීම සඳහා වඩාත් දියුණු ක්‍රමයක්
+            let allText = xml.documentElement.textContent; 
+            let ccMatch = allText.match(/(\d{3,5})\s*CC/i);
             let ccVal = ccMatch ? ccMatch[1] + " CC" : "N/A";
 
-            let date = getVal(["Date", "Assessment_date", "Registration_date"]);
+            let goodsDesc = getVal(["Description_of_goods", "Goods_description", "Item_description"]);
+            let date = getVal(["Date", "Assessment_date", "Registration_date", "Declaration_date"]);
+            
             let rate = getVal(["Currency_rate"]);
             if (rate === "N/A") {
                 let nat = xml.getElementsByTagName("Amount_national_currency")[0]?.textContent;
@@ -118,7 +120,7 @@
 
             let chassis = getVal(["Chassis_Number"]);
             if (chassis === "N/A") {
-                let marks = getVal(["Marks1_of_packages"]);
+                let marks = getVal(["Marks1_of_packages", "Marks_of_packages"]);
                 chassis = marks.includes("CH.NO:") ? marks.split("CH.NO:")[1].trim().split(/[\s,]+/)[0] : "N/A";
             }
 
@@ -126,7 +128,7 @@
                 id: Date.now() + Math.random(),
                 date: date,
                 rate: rate,
-                name: goodsDesc.split('\n')[0],
+                name: goodsDesc.split('\n')[0].substring(0, 50),
                 cc: ccVal,
                 chassis: chassis,
                 hs: getVal(["Commodity_code", "HS_Code"]),
@@ -175,7 +177,7 @@
     }
 
     function checkAuth(callback) {
-        const pwd = prompt("මෙම ක්‍රියාව සඳහා Password ඇතුළත් කරන්න:");
+        const pwd = prompt("මෙම ක්‍රියාව සඳහා Password එක ඇතුළත් කරන්න:");
         if (pwd === APP_PASSWORD) callback();
         else alert("මුරපදය වැරදියි!");
     }
