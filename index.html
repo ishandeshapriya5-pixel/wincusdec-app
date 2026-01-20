@@ -3,26 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WinCusdec Pro - Editable</title>
+    <title>WinCusdec Pro - Secure Edit</title>
     <style>
-        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; }
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --warning: #f39c12; }
         body { font-family: 'Segoe UI', sans-serif; background: #eef2f3; margin: 0; padding: 15px; }
         .container { max-width: 1200px; margin: auto; }
         .upload-card { background: white; padding: 25px; border-radius: 15px; text-align: center; border: 3px dashed var(--accent); cursor: pointer; margin-bottom: 15px; }
         .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
-        .btn-clear { background: var(--danger); color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn { border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: 0.3s; }
+        .btn-clear { background: var(--danger); }
+        .btn-edit { background: var(--warning); }
+        .btn-lock { background: var(--success); display: none; }
         .search-box { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 15px; min-width: 250px; }
         .table-container { background: white; border-radius: 10px; overflow-x: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
         table { width: 100%; border-collapse: collapse; min-width: 1000px; }
         th { background: var(--primary); color: white; padding: 12px; text-align: left; font-size: 13px; }
-        td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12.5px; outline: none; transition: background 0.3s; }
-        /* Edit කරන විට හඳුනා ගැනීමට style එකක් */
-        td[contenteditable="true"]:focus { background: #fff9c4; border: 1px solid var(--accent); }
+        td { padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 12.5px; outline: none; }
+        
+        /* Edit Mode එකේදී පමණක් පෙනෙන වෙනස්කම් */
+        .edit-active td[contenteditable="true"] { background: #fffde7; border: 1px dashed #ccc; cursor: text; }
+        .edit-active td[contenteditable="true"]:focus { background: #fff9c4; border: 1px solid var(--accent); }
+        
         .badge-duty { background: var(--success); color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
         .btn-del { background: #ffeded; color: var(--danger); border: 1px solid var(--danger); padding: 5px 8px; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
-<body>
+<body class="edit-locked">
 
 <div class="container">
     <div class="upload-card" onclick="document.getElementById('xmlMultiple').click()">
@@ -32,10 +38,14 @@
 
     <div class="action-bar">
         <input type="text" id="searchInput" class="search-box" placeholder="සොයන්න..." onkeyup="filterData()">
-        <button class="btn-clear" onclick="clearDatabaseWithAuth()">සියල්ල මකන්න</button>
+        
+        <button id="editBtn" class="btn btn-edit" onclick="toggleEditMode()">Edit කරන්න (Unlock)</button>
+        <button id="lockBtn" class="btn btn-lock" onclick="lockEditMode()">සුරකින්න (Lock)</button>
+        
+        <button class="btn btn-clear" onclick="clearDatabaseWithAuth()">සියල්ල මකන්න</button>
     </div>
 
-    <div class="table-container">
+    <div class="table-container" id="tableWrapper">
         <table>
             <thead>
                 <tr>
@@ -56,18 +66,40 @@
 </div>
 
 <script>
-    // මුලින්ම Password එකක් set කරගන්න (මෙය ඔබට අවශ්‍ය ලෙස වෙනස් කරන්න)
     const APP_PASSWORD = "123"; 
-
+    let isEditMode = false;
     let vehicleDatabase = JSON.parse(localStorage.getItem('vehicleDB')) || [];
     renderTable();
 
+    // Edit Mode එක පාලනය කිරීම
+    function toggleEditMode() {
+        const pwd = prompt("Edit කිරීමට අවසර ලබා ගැනීමට Password එක ඇතුළත් කරන්න:");
+        if (pwd === APP_PASSWORD) {
+            isEditMode = true;
+            document.body.classList.add('edit-active');
+            document.getElementById('editBtn').style.display = 'none';
+            document.getElementById('lockBtn').style.display = 'block';
+            renderTable(); // Table එක refresh කර Edit හැකියාව ලබා දේ
+        } else {
+            alert("මුරපදය වැරදියි!");
+        }
+    }
+
+    function lockEditMode() {
+        isEditMode = false;
+        document.body.classList.remove('edit-active');
+        document.getElementById('editBtn').style.display = 'block';
+        document.getElementById('lockBtn').style.display = 'none';
+        renderTable(); // Table එක නැවත Lock කරයි
+        alert("සියලු දත්ත සුරැකී ඇත!");
+    }
+
     async function handleFiles(files) {
+        // ... (මුල් කේතයේ handleFiles කොටස එලෙසම පවතී)
         for (let file of files) {
             const text = await file.text();
             const parser = new DOMParser();
             const xml = parser.parseFromString(text, "text/xml");
-
             const getVal = (tags) => {
                 for (let tag of tags) {
                     let el = xml.getElementsByTagName(tag)[0];
@@ -75,7 +107,6 @@
                 }
                 return "N/A";
             };
-
             let date = getVal(["Date", "Assessment_date", "Registration_date"]);
             let rate = getVal(["Currency_rate"]);
             if (rate === "N/A") {
@@ -83,13 +114,11 @@
                 let forgn = xml.getElementsByTagName("Amount_foreign_currency")[0]?.textContent;
                 if (nat && forgn) rate = (parseFloat(nat) / parseFloat(forgn)).toFixed(4);
             }
-
             let chassis = getVal(["Chassis_Number"]);
             if (chassis === "N/A") {
                 let marks = getVal(["Marks1_of_packages"]);
                 chassis = marks.includes("CH.NO:") ? marks.split("CH.NO:")[1].trim().split(/[\s,]+/)[0] : "N/A";
             }
-
             const record = {
                 id: Date.now() + Math.random(),
                 date: date,
@@ -101,7 +130,6 @@
                 duty: getVal(["Totals_taxes"]),
                 searchStr: (date + chassis + rate + getVal(["Description_of_goods"])).toLowerCase()
             };
-
             if (!vehicleDatabase.some(v => v.chassis === record.chassis && record.chassis !== "N/A")) {
                 vehicleDatabase.push(record);
             }
@@ -109,43 +137,38 @@
         save();
     }
 
-    // දත්ත Edit කිරීමෙන් පසු Save කිරීමට අවශ්‍ය Function එක
     function updateCell(id, field, value) {
+        if(!isEditMode) return;
         const index = vehicleDatabase.findIndex(v => v.id === id);
         if (index !== -1) {
-            // Duty වැනි සංඛ්‍යාත්මක අගයන්හි comma ඉවත් කර ගබඩා කිරීම
             if(field === 'duty') value = value.replace(/Rs\.|,/g, '').trim();
-            
             vehicleDatabase[index][field] = value;
             localStorage.setItem('vehicleDB', JSON.stringify(vehicleDatabase));
-            console.log("Saved: " + field);
         }
     }
 
-    // Password පරීක්ෂා කිරීමේ පොදු function එක
     function checkAuth(callback) {
-        const pwd = prompt("මෙම ක්‍රියාව සඳහා මුරපදය (Password) ඇතුළත් කරන්න:");
-        if (pwd === APP_PASSWORD) {
-            callback();
-        } else {
-            alert("මුරපදය වැරදියි!");
-        }
+        const pwd = prompt("මෙම ක්‍රියාව සඳහා Password එක ඇතුළත් කරන්න:");
+        if (pwd === APP_PASSWORD) callback();
+        else alert("මුරපදය වැරදියි!");
     }
 
     function renderTable(data = vehicleDatabase) {
         const tbody = document.getElementById('tableBody');
+        const editableAttr = isEditMode ? 'contenteditable="true"' : 'contenteditable="false"';
+        
         tbody.innerHTML = data.map((v, i) => `
             <tr>
                 <td>${i + 1}</td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'name', this.innerText)">${v.name}</td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'chassis', this.innerText)"><b>${v.chassis}</b></td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'duty', this.innerText)">
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'name', this.innerText)">${v.name}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'chassis', this.innerText)"><b>${v.chassis}</b></td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'duty', this.innerText)">
                     <span class="badge-duty">Rs. ${parseFloat(v.duty).toLocaleString()}</span>
                 </td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'invoice', this.innerText)">${v.invoice}</td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'date', this.innerText)">${v.date}</td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'hs', this.innerText)" style="color:#e67e22; font-weight:bold;">${v.hs}</td>
-                <td contenteditable="true" onblur="updateCell(${v.id}, 'rate', this.innerText)">${v.rate}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'invoice', this.innerText)">${v.invoice}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'date', this.innerText)">${v.date}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'hs', this.innerText)" style="color:#e67e22; font-weight:bold;">${v.hs}</td>
+                <td ${editableAttr} onblur="updateCell(${v.id}, 'rate', this.innerText)">${v.rate}</td>
                 <td><button class="btn-del" onclick="deleteItemWithAuth(${v.id})">මකන්න</button></td>
             </tr>
         `).join('');
